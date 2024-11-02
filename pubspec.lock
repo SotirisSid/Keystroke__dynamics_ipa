@@ -458,10 +458,10 @@ packages:
     dependency: "direct overridden"
     description:
       name: win32
-      sha256: "84ba388638ed7a8cb3445a320c8273136ab2631cd5f2c57888335504ddab1bc2"
+      sha256: "015002c060f1ae9f41a818f2d5640389cc05283e368be19dc8d77cecb43c40c9"
       url: "https://pub.dev"
     source: hosted
-    version: "5.8.0"
+    version: "5.5.3"
   xdg_directories:
     dependency: transitive
     description:
