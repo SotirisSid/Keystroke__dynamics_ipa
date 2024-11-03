@@ -1,0 +1,44 @@
+name: Keystroke_dynamics apk
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Check out the code
+      - uses: actions/checkout@v4
+
+      # Set up Flutter
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.0.0"  # Use the desired Flutter version
+
+      # Install dependencies
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Run analysis (optional, recommended for Dart analysis)
+      - name: Analyze project source
+        run: flutter analyze
+
+      # Run tests (optional, replace with your test directory)
+      - name: Run tests
+        run: flutter test
+
+      # Build the APK for release
+      - name: Build APK
+        run: flutter build apk --release
+
+      # Upload APK as an artifact
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
