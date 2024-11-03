@@ -1,4 +1,4 @@
-name: Keystroke_dynamics apk
+name: Keystroke Dynamics apk
 
 on:
   push:
@@ -14,21 +14,21 @@ jobs:
       # Check out the code
       - uses: actions/checkout@v4
 
-      # Set up Flutter
+      # Set up Flutter with the required version (3.3.4 or higher)
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.0.0"  # Use the desired Flutter version
+          flutter-version: "3.24.4"  # Update to match the required Dart SDK version
 
       # Install dependencies
       - name: Install dependencies
         run: flutter pub get
 
-      # Run analysis (optional, recommended for Dart analysis)
+      # Analyze the project source code
       - name: Analyze project source
         run: flutter analyze
 
-      # Run tests (optional, replace with your test directory)
+      # Run tests
       - name: Run tests
         run: flutter test
 
