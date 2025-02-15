@@ -6,24 +6,16 @@ import '../constants.dart';
 
 class MainPage extends StatelessWidget {
   final String userName;
-  final List<String> predictions; // Ensure this is a list
+  final List<String> predictions;
 
   const MainPage({
     super.key,
     required this.userName,
-    required this.predictions, // Keep it as a list
+    required this.predictions,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Create a message to display based on predictions
-    String predictionMessage = '';
-    if (predictions.isNotEmpty) {
-      predictionMessage = predictions.join('\n'); // Join messages directly
-    } else {
-      predictionMessage = 'No predictions available.';
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Home'),
@@ -40,17 +32,11 @@ class MainPage extends StatelessWidget {
       ),
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.all(16.0), // Add padding for better layout
+          padding: const EdgeInsets.all(16.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text('Welcome, $userName!', style: const TextStyle(fontSize: 24)),
-              const SizedBox(height: 20),
-              Text(
-                predictionMessage, // Display the prediction messages
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16),
-              ),
               const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () {
@@ -58,12 +44,44 @@ class MainPage extends StatelessWidget {
                     context,
                     '/train',
                     arguments: {
-                      'userName': userName, // Wrap userName in a Map
+                      'userName': userName,
                     },
                   );
                 },
                 child: const Text('Train Keystroke Dynamics'),
               ),
+              const SizedBox(height: 20),
+              predictions.isNotEmpty
+                  ? Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: predictions.map((prediction) {
+                            return Card(
+                              color:
+                                  Colors.blue.shade50, // Light background color
+                              margin: const EdgeInsets.symmetric(vertical: 6),
+                              child: ListTile(
+                                leading: Icon(Icons.check_circle,
+                                    color: Colors.blue),
+                                title: Text(
+                                  prediction,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    )
+                  : Text(
+                      'No predictions available.',
+                      style:
+                          const TextStyle(fontSize: 16, color: Colors.black54),
+                    ),
             ],
           ),
         ),
@@ -73,36 +91,22 @@ class MainPage extends StatelessWidget {
 
   void _logout(BuildContext context) async {
     const FlutterSecureStorage storage = FlutterSecureStorage();
-
-    // Retrieve the token from secure storage
     String? token = await storage.read(key: 'auth_token');
-
-    print('Token to send: $token');
 
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/logout'), // server URL
+        Uri.parse('$baseUrl/auth/logout'),
         headers: <String, String>{
           'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization':
-              token != null ? 'Bearer $token' : '', // Add the token here
+          'Authorization': token != null ? 'Bearer $token' : '',
         },
-        body: jsonEncode(<String, dynamic>{
-          // Optionally, you can send any necessary data in the body.
-        }),
       );
 
       if (response.statusCode == 200) {
-        // Logout successful, navigate back to the login page
-        await storage.delete(key: 'auth_token');
-        await storage.delete(key: 'isLoggedIn');
-        await storage.delete(key: 'userName');
-        await storage.delete(key: 'predictions');
-        Navigator.pushReplacementNamed(
-            context, '/'); // Ensure you have the correct route defined
+        await storage.deleteAll();
+        Navigator.pushReplacementNamed(context, '/');
         print('Logged out successfully');
       } else {
-        // Handle error response
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         _showErrorDialog(context, responseData['message'] ?? 'Logout failed.');
       }
@@ -111,7 +115,6 @@ class MainPage extends StatelessWidget {
     }
   }
 
-  // Helper function to show error dialog
   void _showErrorDialog(BuildContext context, String message) {
     showDialog(
       context: context,
@@ -130,11 +133,5 @@ class MainPage extends StatelessWidget {
         );
       },
     );
-  }
-
-  void _trainKeystrokeDynamics() {
-    // Implement your training logic here
-    print(
-        'Training keystroke dynamics...'); // Placeholder for training functionality
   }
 }

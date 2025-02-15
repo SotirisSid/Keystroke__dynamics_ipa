@@ -25,15 +25,22 @@ class _LoginHomePageState extends State<LoginHomePage> {
   bool _isKeyboardVisible = false;
   String _usernameInput = '';
   String _passwordInput = '';
-
+  String? _userStatus;
   bool _isLoggedIn = false;
   bool passwordFlag = false;
   bool usernameFlag = false;
-
+  final List<double> _keyPressTimesTemp = [];
+  final List<double> _keyReleaseTimesTemp = [];
+  final List<double> _UserkeyPressTimesTemp = [];
+  final List<double> _UserkeyReleaseTimesTemp = [];
   // Keystroke metrics
   final List<double> _keyPressTimes = [];
   final List<double> _keyReleaseTimes = [];
   int _backspaceCount = 0;
+  //keystroke metrics for username
+  final List<double> _keyPressTimesUsername = [];
+  final List<double> _keyReleaseTimesUsername = [];
+  int _backspaceCountUsername = 0;
   //bool _isKeyPressed = false;
 
   @override
@@ -41,15 +48,17 @@ class _LoginHomePageState extends State<LoginHomePage> {
     super.initState();
 
     _usernameFocusNode.addListener(() {
-      setState(() {
-        if (_usernameInput == "") {
-          controller.reset();
-        } else {
-          controller.updateValue(_usernameInput);
-        }
-        _isKeyboardVisible =
-            _usernameFocusNode.hasFocus; //set the keyboard visibility
-      });
+      if (_usernameFocusNode.hasFocus) {
+        setState(() {
+          if (_usernameInput == "") {
+            controller.reset();
+          } else {
+            controller.updateValue(_usernameInput);
+          }
+          _isKeyboardVisible =
+              _usernameFocusNode.hasFocus; //set the keyboard visibility
+        });
+      } else {}
     });
 
     _passwordFocusNode.addListener(() {
@@ -65,22 +74,26 @@ class _LoginHomePageState extends State<LoginHomePage> {
     });
   }
 
-  // Function to register keystrokes
-  void _registerKeystroke(double pressTime, double releaseTime) {
-    //print keypresstimes
-    print(_keyPressTimes);
+  void _registerUserKeystroke(double pressTime, double releaseTime) {
     if (pressTime != 0) {
-      _keyPressTimes.add(pressTime);
-      print('Key Press Time Added: $pressTime'); // Debugging line
+      _UserkeyPressTimesTemp.add(pressTime);
     }
     if (releaseTime != 0) {
-      _keyReleaseTimes.add(releaseTime);
-      print('Key Release Time Added: $releaseTime'); // Debugging line
+      _UserkeyReleaseTimesTemp.add(releaseTime);
     }
-
-    print(
-        'Key Press Times: ${_keyPressTimes.length}, Key Release Times: ${_keyReleaseTimes.length}');
   }
+
+  // Function to register keystrokes for password field
+  void _registerKeystroke(double pressTime, double releaseTime) {
+    if (pressTime != 0) {
+      _keyPressTimesTemp.add(pressTime);
+      print(('Key Pressed at: $pressTime')); // Debugging line
+    }
+    if (releaseTime != 0) {
+      _keyReleaseTimesTemp.add(releaseTime);
+    }
+  }
+
   //This function is used to capture keystrokes but not from software keyboard
   //i keep it here for future reference
   // Function to handle key press and release events
@@ -114,6 +127,7 @@ class _LoginHomePageState extends State<LoginHomePage> {
 
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
+      print(_keyPressTimesTemp);
       final response = await http.post(
         Uri.parse('$baseUrl/authenticate'),
         headers: <String, String>{
@@ -125,6 +139,10 @@ class _LoginHomePageState extends State<LoginHomePage> {
           'key_press_times': _keyPressTimes.join(','),
           'key_release_times': _keyReleaseTimes.join(','),
           'backspace_count': _backspaceCount,
+          'key_press_times_username': _keyPressTimesUsername.join(','),
+          'key_release_times_username': _keyReleaseTimesUsername.join(','),
+          'backspace_count_username': _backspaceCountUsername,
+          'user_status': _userStatus,
         }),
       );
 
@@ -133,19 +151,29 @@ class _LoginHomePageState extends State<LoginHomePage> {
         if (responseData['authenticated']) {
           await storage.write(key: 'auth_token', value: responseData['token']);
 
-          // Handle predictions
           var predictions = responseData['predictions'];
+          String role =
+              responseData['role']; // Fetch the user role from the response
+
           await storage.write(key: 'isLoggedIn', value: 'true');
           await storage.write(key: 'userName', value: _usernameController.text);
           await storage.write(
               key: 'predictions', value: jsonEncode(predictions));
-          print('Predictions: $predictions');
 
-          // Navigate to the main page
-          Navigator.pushReplacementNamed(context, '/mainpage', arguments: {
-            'userName': _usernameController.text,
-            'predictions': List<String>.from(predictions),
-          });
+          await storage.write(key: 'role', value: role);
+
+          // Navigate based on role
+          if (role == 'admin') {
+            Navigator.pushReplacementNamed(context, '/admin', arguments: {
+              'userName': _usernameController.text,
+              'predictions': List<String>.from(predictions),
+            });
+          } else {
+            Navigator.pushReplacementNamed(context, '/mainpage', arguments: {
+              'userName': _usernameController.text,
+              'predictions': List<String>.from(predictions),
+            });
+          }
 
           setState(() {
             _isLoggedIn = true;
@@ -154,14 +182,12 @@ class _LoginHomePageState extends State<LoginHomePage> {
       } else if (response.statusCode == 401) {
         _showErrorDialog(
             context, 'Authentication failed. Please check your credentials.');
-        _passwordController.clear();
-        controller.reset();
+        _resetController();
         _resetMetrics();
       } else {
         _showErrorDialog(context,
             'An error occurred: ${response.statusCode} ${response.reasonPhrase}');
-        _passwordController.clear();
-        controller.reset();
+        _resetController();
         _resetMetrics();
       }
     }
@@ -195,9 +221,22 @@ class _LoginHomePageState extends State<LoginHomePage> {
     });
   }
 
+  void _resetController() {
+    _passwordController.clear();
+    _usernameController.clear();
+    controller.reset();
+  }
+
   void _resetMetrics() {
+    _usernameInput = '';
+    _passwordInput = '';
+    _keyPressTimesTemp.clear();
+    _keyReleaseTimesTemp.clear();
     _keyPressTimes.clear();
     _keyReleaseTimes.clear();
+    _keyPressTimesUsername.clear();
+    _keyReleaseTimesUsername.clear();
+    _backspaceCountUsername = 0;
     _backspaceCount = 0;
   }
 
@@ -222,7 +261,12 @@ class _LoginHomePageState extends State<LoginHomePage> {
   }
 
   void _handleUserChange(String text) {
-    print("Handle User Change");
+    _keyPressTimesUsername.add(_UserkeyPressTimesTemp.last);
+    _keyReleaseTimesUsername.add(_UserkeyReleaseTimesTemp.last);
+
+    if (_usernameInput.length > text.length) {
+      _backspaceCountUsername++;
+    }
     setState(() {
       _usernameInput = text;
       _usernameController.value = TextEditingValue(
@@ -235,9 +279,10 @@ class _LoginHomePageState extends State<LoginHomePage> {
   }
 
   void _handlePasswordChange(String text) {
-    print("Handle Password Change");
+    _keyPressTimes.add(_keyPressTimesTemp.last);
+    _keyReleaseTimes.add(_keyReleaseTimesTemp.last);
+
     if (_passwordInput.length > text.length) {
-      print("Backspace Pressed");
       _backspaceCount++;
     }
     setState(() {
@@ -278,40 +323,51 @@ class _LoginHomePageState extends State<LoginHomePage> {
       ),
       body: Column(
         children: [
+          const SizedBox(height: 80),
           Expanded(
-            child: Center(
+            child: SingleChildScrollView(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: _isLoggedIn ? Container() : _buildLoginForm(context),
               ),
             ),
           ),
-          if (_isKeyboardVisible)
-            Listener(
-              onPointerUp: (details) {
-                if (_passwordFocusNode.hasFocus) {
-                  setState(() {
-                    // Take the timestamp of the event and add it to the keyrelease times list
-                    _registerKeystroke(
-                        0, DateTime.now().millisecondsSinceEpoch.toDouble());
-                    print("Tapped cancel on password field keyboard");
-                  });
-                }
-              },
-              onPointerDown: (details) {
-                if (_passwordFocusNode.hasFocus) {
-                  setState(() {
-                    _registerKeystroke(
-                        DateTime.now().millisecondsSinceEpoch.toDouble(), 0);
-                    print("Tapped down on password field keyboard");
-                    print(details.localPosition);
-                    print(details.kind);
-                  });
-                }
-              },
+          Listener(
+            onPointerUp: (details) {
+              if (_usernameFocusNode.hasFocus) {
+                setState(() {
+                  // Take the timestamp of the event and add it to the keyrelease times list
+                  _registerUserKeystroke(
+                      0, DateTime.now().millisecondsSinceEpoch.toDouble());
+                });
+              } else if (_passwordFocusNode.hasFocus) {
+                setState(() {
+                  // Take the timestamp of the event and add it to the keyrelease times list
+                  _registerKeystroke(
+                      0, DateTime.now().millisecondsSinceEpoch.toDouble());
+                });
+              }
+            },
+            onPointerDown: (details) {
+              if (_usernameFocusNode.hasFocus) {
+                setState(() {
+                  _registerUserKeystroke(
+                      DateTime.now().millisecondsSinceEpoch.toDouble(), 0);
+                });
+              } else if (_passwordFocusNode.hasFocus) {
+                setState(() {
+                  _registerKeystroke(
+                      DateTime.now().millisecondsSinceEpoch.toDouble(), 0);
+                });
+              }
+            },
+            child: Visibility(
+              visible: _isKeyboardVisible,
+              maintainState: true, // Control visibility instead of removing
               child: Container(
                 alignment: Alignment.bottomCenter,
                 height: MediaQuery.of(context).size.height * 0.35,
+                width: MediaQuery.of(context).size.width, // Full width
                 child: CustomKeyboard(
                   key: _keyboardKey,
                   backgroundColor: Colors.white,
@@ -333,6 +389,7 @@ class _LoginHomePageState extends State<LoginHomePage> {
                 ),
               ),
             ),
+          ),
         ],
       ),
     );
@@ -369,7 +426,6 @@ class _LoginHomePageState extends State<LoginHomePage> {
               return null; // Return null for valid input
             },
             onTap: () {
-              print('Username field tapped'); // Debugging line
               _usernameFocusNode.requestFocus(); // Request focus on tap
               usernameFlag = true;
               passwordFlag = false;
@@ -385,7 +441,6 @@ class _LoginHomePageState extends State<LoginHomePage> {
               }
             },
             onTap: () {
-              print('Password field tapped'); // Debugging line
               _passwordFocusNode.requestFocus(); // Request focus on tap
               passwordFlag = true;
               usernameFlag = false;
@@ -403,6 +458,26 @@ class _LoginHomePageState extends State<LoginHomePage> {
             },
           ),
           const SizedBox(height: 20),
+          // New DropdownButtonFormField to select user status
+          DropdownButtonFormField<String>(
+            value: _userStatus,
+            decoration: const InputDecoration(
+                labelText:
+                    'User Status(This option is used for evaluating the models)'),
+            items: <String>['Valid User', 'Intruder'].map((String status) {
+              return DropdownMenuItem<String>(
+                value: status,
+                child: Text(status),
+              );
+            }).toList(),
+            onChanged: (String? newValue) {
+              setState(() {
+                _userStatus = newValue;
+              });
+            },
+            validator: (value) =>
+                value == null ? 'Please select your status' : null,
+          ),
           ElevatedButton(
             onPressed: _login,
             child: const Text('Login'),

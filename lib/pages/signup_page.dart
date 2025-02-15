@@ -22,26 +22,36 @@ class _SignupPageState extends State<SignupPage> {
   final FocusNode _passwordFocusNode = FocusNode();
   final FocusNode _usernameFocusNode = FocusNode();
   int _backspaceCount = 0; // Count the number of backspaces
-
+  //keystroke metrics for username
+  final List<double> _keyPressTimesUsername = [];
+  final List<double> _keyReleaseTimesUsername = [];
+  final List<double> _UserkeyPressTimesTemp = [];
+  final List<double> _UserkeyReleaseTimesTemp = [];
+  final List<double> _keyPressTimesTemp = [];
+  final List<double> _keyReleaseTimesTemp = [];
+  int _backspaceCountUsername = 0;
   bool _isKeyboardVisible = false;
   String _usernameInput = '';
   String _passwordInput = '';
   bool passwordFlag = false;
   bool usernameFlag = false;
+
   @override
   void initState() {
     super.initState();
 
     _usernameFocusNode.addListener(() {
-      setState(() {
-        if (_usernameInput == "") {
-          controller.reset();
-        } else {
-          controller.updateValue(_usernameInput);
-        }
-        _isKeyboardVisible =
-            _usernameFocusNode.hasFocus; //set the keyboard visibility
-      });
+      if (_usernameFocusNode.hasFocus) {
+        setState(() {
+          if (_usernameInput == "") {
+            controller.reset();
+          } else {
+            controller.updateValue(_usernameInput);
+          }
+          _isKeyboardVisible =
+              _usernameFocusNode.hasFocus; //set the keyboard visibility
+        });
+      } else {}
     });
 
     _passwordFocusNode.addListener(() {
@@ -49,7 +59,6 @@ class _SignupPageState extends State<SignupPage> {
         if (_passwordInput == "") {
           controller.reset();
         } else {
-          print("Else branch");
           controller.updateValue(_passwordInput);
         }
         _isKeyboardVisible =
@@ -59,40 +68,47 @@ class _SignupPageState extends State<SignupPage> {
   }
 
   bool _isKeyboardArea(PointerDownEvent event) {
-    // Get the keyboard widget's RenderBox and position
     final RenderBox? keyboardBox =
         _keyboardKey.currentContext?.findRenderObject() as RenderBox?;
     if (keyboardBox != null) {
-      // Get the keyboard's size and position
       final Offset keyboardPosition = keyboardBox.localToGlobal(Offset.zero);
       final Size keyboardSize = keyboardBox.size;
 
-      // Check if the event's position is within the keyboard's bounds
-      return event.localPosition.dx >= keyboardPosition.dx &&
-          event.localPosition.dx <= keyboardPosition.dx + keyboardSize.width &&
-          event.localPosition.dy >= keyboardPosition.dy &&
-          event.localPosition.dy <= keyboardPosition.dy + keyboardSize.height;
+      return event.position.dx >= keyboardPosition.dx &&
+          event.position.dx <= keyboardPosition.dx + keyboardSize.width &&
+          event.position.dy >= keyboardPosition.dy &&
+          event.position.dy <= keyboardPosition.dy + keyboardSize.height;
     }
     return false;
   }
 
-  // Function to register keystrokes
-  void _registerKeystroke(double pressTime, double releaseTime) {
+  void _registerUserKeystroke(double pressTime, double releaseTime) {
     if (pressTime != 0) {
-      _keyPressTimes.add(pressTime);
-      print('Key Press Time Added: $pressTime'); // Debugging line
+      _UserkeyPressTimesTemp.add(pressTime);
     }
     if (releaseTime != 0) {
-      _keyReleaseTimes.add(releaseTime);
-      print('Key Release Time Added: $releaseTime'); // Debugging line
+      _UserkeyReleaseTimesTemp.add(releaseTime);
     }
+  }
 
-    print(
-        'Key Press Times: ${_keyPressTimes.length}, Key Release Times: ${_keyReleaseTimes.length}');
+  // Function to register keystrokes
+  void _registerKeystroke(double pressTime, double releaseTime) {
+    //print keypresstimes
+
+    if (pressTime != 0) {
+      _keyPressTimesTemp.add(pressTime);
+    }
+    if (releaseTime != 0) {
+      _keyReleaseTimesTemp.add(releaseTime);
+    }
   }
 
   void _handleUserChange(String text) {
-    print("Handle User Change");
+    _keyPressTimesUsername.add(_UserkeyPressTimesTemp.last);
+    _keyReleaseTimesUsername.add(_UserkeyReleaseTimesTemp.last);
+    if (_usernameInput.length > text.length) {
+      _backspaceCountUsername++;
+    }
     setState(() {
       _usernameInput = text;
       _usernameController.value = TextEditingValue(
@@ -104,10 +120,17 @@ class _SignupPageState extends State<SignupPage> {
     });
   }
 
+  bool validateStructure(String value) {
+    String pattern =
+        r'^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[!@#\$&*~]).{8,}$';
+    RegExp regExp = RegExp(pattern);
+    return regExp.hasMatch(value);
+  }
+
   void _handlePasswordChange(String text) {
-    print("Handle Password Change");
+    _keyPressTimes.add(_keyPressTimesTemp.last);
+    _keyReleaseTimes.add(_keyReleaseTimesTemp.last);
     if (_passwordInput.length > text.length) {
-      print("Backspace Pressed");
       _backspaceCount++;
     }
     setState(() {
@@ -162,6 +185,9 @@ class _SignupPageState extends State<SignupPage> {
           'key_release_times':
               _keyReleaseTimes.join(','), // Send key release times
           'backspace_count': _backspaceCount, // Send backspace count
+          'key_press_times_username': _keyPressTimesUsername.join(','),
+          'key_release_times_username': _keyReleaseTimesUsername.join(','),
+          'backspace_count_username': _backspaceCountUsername,
         }),
       );
 
@@ -188,10 +214,16 @@ class _SignupPageState extends State<SignupPage> {
         );
         controller.reset();
         _passwordController.clear();
+        _usernameController.clear();
+        _usernameInput = '';
+        _passwordInput = '';
         FocusScope.of(context).requestFocus(FocusNode());
       }
 
       // Reset data after sending
+      _keyPressTimesUsername.clear();
+      _keyReleaseTimesUsername.clear();
+      _backspaceCountUsername = 0; // Reset backspace count
       _keyPressTimes.clear();
       _keyReleaseTimes.clear();
       _backspaceCount = 0; // Reset backspace count
@@ -200,6 +232,9 @@ class _SignupPageState extends State<SignupPage> {
 
   @override
   void dispose() {
+    print("dispose called");
+    _usernameFocusNode.removeListener(() {});
+    _passwordFocusNode.removeListener(() {});
     controller.dispose();
     _passwordFocusNode.dispose(); // Dispose the focus node
     _usernameFocusNode.dispose(); // Dispose the focus node
@@ -217,10 +252,10 @@ class _SignupPageState extends State<SignupPage> {
       body: GestureDetector(
         onTap: () {
           // Unfocus the input fields and hide the keyboard
-          FocusScope.of(context).unfocus();
-          setState(() {
-            _isKeyboardVisible = false; // Hide the keyboard
-          });
+          // FocusScope.of(context).unfocus();
+          //setState(() {
+          // _isKeyboardVisible = false; // Hide the keyboard
+          //});
         },
         child: Column(
           children: <Widget>[
@@ -240,17 +275,6 @@ class _SignupPageState extends State<SignupPage> {
                           height: 100, // Adjust the height as needed
                         ),
                         TextFormField(
-                          keyboardType: TextInputType.none,
-                          focusNode: _usernameFocusNode,
-                          controller: _usernameController,
-                          decoration:
-                              const InputDecoration(labelText: 'Username'),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your username';
-                            }
-                            return null; // Return null for valid input
-                          },
                           onTapOutside: (event) {
                             if (!_isKeyboardArea(event)) {
                               setState(() {
@@ -259,8 +283,29 @@ class _SignupPageState extends State<SignupPage> {
                               });
                             }
                           },
+                          keyboardType: TextInputType.none,
+                          focusNode: _usernameFocusNode,
+                          controller: _usernameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Username',
+                            errorMaxLines:
+                                3, // Allow error messages to span up to 3 lines
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your username';
+                            }
+
+                            // Regex for validating username
+                            final usernameRegex =
+                                RegExp(r'^[a-zA-Z0-9._]{3,15}$');
+                            if (!usernameRegex.hasMatch(value)) {
+                              return 'Username must be 3-15 characters long and can only contain letters, numbers, dots, and underscores.';
+                            }
+
+                            return null; // Return null for valid input
+                          },
                           onTap: () {
-                            print('Username field tapped'); // Debugging line
                             _usernameFocusNode
                                 .requestFocus(); // Request focus on tap
                             usernameFlag = true;
@@ -277,7 +322,6 @@ class _SignupPageState extends State<SignupPage> {
                             }
                           },
                           onTap: () {
-                            print('Password field tapped'); // Debugging line
                             _passwordFocusNode
                                 .requestFocus(); // Request focus on tap
                             passwordFlag = true;
@@ -287,12 +331,18 @@ class _SignupPageState extends State<SignupPage> {
                           focusNode:
                               _passwordFocusNode, // Focus node for password field
                           controller: _passwordController,
-                          decoration:
-                              const InputDecoration(labelText: 'Password'),
+                          decoration: const InputDecoration(
+                            labelText: 'Password',
+                            errorMaxLines:
+                                3, // Allows error messages to have up to 2 lines
+                          ),
                           obscureText: true,
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return 'Please enter your password';
+                            }
+                            if (!validateStructure(value)) {
+                              return 'Password must be at least 8 characters long, include an uppercase letter, a lowercase letter, a number, and a special character.';
                             }
                             return null; // Return null for valid input
                           },
@@ -309,34 +359,44 @@ class _SignupPageState extends State<SignupPage> {
               ),
             ),
             // Custom Keyboard at the bottom
-            if (_isKeyboardVisible)
-              Listener(
-                onPointerUp: (details) {
-                  if (_passwordFocusNode.hasFocus) {
-                    setState(() {
-                      // Take the timestamp of the event and add it to the keyrelease times list
-                      _registerKeystroke(
-                          0, DateTime.now().millisecondsSinceEpoch.toDouble());
-                      print("Tapped cancel on password field keyboard");
-                    });
-                  }
-                },
-                onPointerDown: (details) {
-                  if (_passwordFocusNode.hasFocus) {
-                    setState(() {
-                      _registerKeystroke(
-                          DateTime.now().millisecondsSinceEpoch.toDouble(), 0);
-                      print("Tapped down on password field keyboard");
-                      print(details.localPosition);
-                      print(details.kind);
-                    });
-                  }
-                },
+            Listener(
+              onPointerUp: (details) {
+                if (_usernameFocusNode.hasFocus) {
+                  setState(() {
+                    // Take the timestamp of the event and add it to the keyrelease times list
+                    _registerUserKeystroke(
+                        0, DateTime.now().millisecondsSinceEpoch.toDouble());
+                  });
+                } else if (_passwordFocusNode.hasFocus) {
+                  setState(() {
+                    // Take the timestamp of the event and add it to the keyrelease times list
+                    _registerKeystroke(
+                        0, DateTime.now().millisecondsSinceEpoch.toDouble());
+                  });
+                }
+              },
+              onPointerDown: (details) {
+                if (_usernameFocusNode.hasFocus) {
+                  setState(() {
+                    _registerUserKeystroke(
+                        DateTime.now().millisecondsSinceEpoch.toDouble(), 0);
+                  });
+                } else if (_passwordFocusNode.hasFocus) {
+                  setState(() {
+                    _registerKeystroke(
+                        DateTime.now().millisecondsSinceEpoch.toDouble(), 0);
+                  });
+                }
+              },
+              child: Visibility(
+                visible: _isKeyboardVisible,
+                maintainState: true,
                 child: Container(
                   alignment: Alignment.bottomCenter,
                   height: MediaQuery.of(context).size.height * 0.35,
                   width: MediaQuery.of(context).size.width, // Full width
                   child: CustomKeyboard(
+                    key: _keyboardKey,
                     backgroundColor: Colors.white,
                     bottomPaddingColor: Colors.transparent,
                     bottomPaddingHeight: 0,
@@ -356,6 +416,7 @@ class _SignupPageState extends State<SignupPage> {
                   ),
                 ),
               ),
+            ),
           ],
         ),
       ),

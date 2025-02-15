@@ -15,27 +15,54 @@ class TrainKeystrokePage extends StatefulWidget {
 
 class _TrainKeystrokePageState extends State<TrainKeystrokePage> {
   final GlobalKey _keyboardKey = GlobalKey();
+  final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+
+  final List<double> _keystrokeIntervals = [];
+  //focus nodes
+  final FocusNode _usernameFocusNode = FocusNode();
+  final FocusNode _passwordFocusNode = FocusNode();
+  String _serverMessage = '';
+  //keystroke metrics for password
   int _backspaceCount = 0;
   final List<double> _keyPressTimes = [];
   final List<double> _keyReleaseTimes = [];
-  final List<double> _keystrokeIntervals = [];
-  final FocusNode _passwordFocusNode = FocusNode();
-  String _serverMessage = '';
-
+  //keystroke metrics for username
+  final List<double> _keyPressTimesUsername = [];
+  final List<double> _keyReleaseTimesUsername = [];
+  final List<double> _keyPressTimesTemp = [];
+  final List<double> _keyReleaseTimesTemp = [];
+  final List<double> _UserkeyPressTimesTemp = [];
+  final List<double> _UserkeyReleaseTimesTemp = [];
+  int _backspaceCountUsername = 0;
+  bool usernameFlag = false;
+  bool passwordFlag = false;
   final CKController controller = CKController();
   String _passwordInput = '';
+  String _usernameInput = '';
   bool _isKeyboardVisible = false;
 
   @override
   void initState() {
     super.initState();
+
+    _usernameFocusNode.addListener(() {
+      setState(() {
+        if (_usernameInput == "") {
+          controller.reset();
+        } else {
+          controller.updateValue(_usernameInput);
+        }
+        _isKeyboardVisible =
+            _usernameFocusNode.hasFocus; //set the keyboard visibility
+      });
+    });
+
     _passwordFocusNode.addListener(() {
       setState(() {
         if (_passwordInput == "") {
           controller.reset();
         } else {
-          print("Else branch");
           controller.updateValue(_passwordInput);
         }
         _isKeyboardVisible =
@@ -44,36 +71,39 @@ class _TrainKeystrokePageState extends State<TrainKeystrokePage> {
     });
   }
 
-  // Function to register keystrokes
-  void _registerKeystroke(double pressTime, double releaseTime) {
+  void _registerUserKeystroke(double pressTime, double releaseTime) {
     if (pressTime != 0) {
-      _keyPressTimes.add(pressTime);
-      print('Key Press Time Added: $pressTime'); // Debugging line
+      _UserkeyPressTimesTemp.add(pressTime);
     }
     if (releaseTime != 0) {
-      _keyReleaseTimes.add(releaseTime);
-      print('Key Release Time Added: $releaseTime'); // Debugging line
+      _UserkeyReleaseTimesTemp.add(releaseTime);
     }
+  }
 
-    print(
-        'Key Press Times: ${_keyPressTimes.length}, Key Release Times: ${_keyReleaseTimes.length}');
+  // Function to register keystrokes for password field
+  void _registerKeystroke(double pressTime, double releaseTime) {
+    //print keypresstimes
+
+    if (pressTime != 0) {
+      _keyPressTimesTemp.add(pressTime);
+    }
+    if (releaseTime != 0) {
+      _keyReleaseTimesTemp.add(releaseTime);
+    }
   }
 
   // This function checks if the tap event is within the keyboard area
   bool _isKeyboardArea(PointerDownEvent event) {
-    // Get the keyboard widget's RenderBox and position
     final RenderBox? keyboardBox =
         _keyboardKey.currentContext?.findRenderObject() as RenderBox?;
     if (keyboardBox != null) {
-      // Get the keyboard's size and position
       final Offset keyboardPosition = keyboardBox.localToGlobal(Offset.zero);
       final Size keyboardSize = keyboardBox.size;
 
-      // Check if the event's position is within the keyboard's bounds
-      return event.localPosition.dx >= keyboardPosition.dx &&
-          event.localPosition.dx <= keyboardPosition.dx + keyboardSize.width &&
-          event.localPosition.dy >= keyboardPosition.dy &&
-          event.localPosition.dy <= keyboardPosition.dy + keyboardSize.height;
+      return event.position.dx >= keyboardPosition.dx &&
+          event.position.dx <= keyboardPosition.dx + keyboardSize.width &&
+          event.position.dy >= keyboardPosition.dy &&
+          event.position.dy <= keyboardPosition.dy + keyboardSize.height;
     }
     return false;
   }
@@ -136,14 +166,38 @@ class _TrainKeystrokePageState extends State<TrainKeystrokePage> {
     _backspaceCount = 0;
     _keyPressTimes.clear();
     _keyReleaseTimes.clear();
+    _keyPressTimesUsername.clear();
+    _keyReleaseTimesUsername.clear();
+    _backspaceCountUsername = 0;
+
     _keystrokeIntervals.clear();
     _passwordController.clear(); // Clear the password field
+    _usernameController.clear();
+    _passwordInput = '';
+    _usernameInput = '';
+  }
+
+  void _handleUserChange(String text) {
+    _keyPressTimesUsername.add(_UserkeyPressTimesTemp.last);
+    _keyReleaseTimesUsername.add(_UserkeyReleaseTimesTemp.last);
+    if (_usernameInput.length > text.length) {
+      _backspaceCountUsername++;
+    }
+    setState(() {
+      _usernameInput = text;
+      _usernameController.value = TextEditingValue(
+        text: _usernameInput,
+        selection: TextSelection.fromPosition(
+          TextPosition(offset: _usernameInput.length),
+        ),
+      );
+    });
   }
 
   void _handlePasswordChange(String text) {
-    print("Handle Password Change");
+    _keyPressTimes.add(_keyPressTimesTemp.last);
+    _keyReleaseTimes.add(_keyReleaseTimesTemp.last);
     if (_passwordInput.length > text.length) {
-      print("Backspace Pressed");
       _backspaceCount++;
     }
     setState(() {
@@ -160,20 +214,23 @@ class _TrainKeystrokePageState extends State<TrainKeystrokePage> {
   // Function to submit the keystroke data and the raw password
   void _submitKeystrokeData() async {
     final rawPassword = _passwordController.text;
-
+    final rawusername = _usernameController.text;
     // Calculate intervals and error rate before submitting
     _calculateKeystrokeInterval();
     double errorRate = _calculateErrorRate();
 
     // Prepare data to send to the server
     final data = {
-      'userName': widget.userName,
+      'userName': rawusername,
       'password': rawPassword,
       'key_press_times': _keyPressTimes,
       'key_release_times': _keyReleaseTimes,
       'backspace_count': _backspaceCount,
       'keystroke_intervals': _keystrokeIntervals,
       'error_rate': errorRate,
+      'key_press_times_username': _keyPressTimesUsername,
+      'key_release_times_username': _keyReleaseTimesUsername,
+      'backspace_count_username': _backspaceCountUsername,
     };
 
     // Code to submit data to the server using an HTTP POST request
@@ -202,8 +259,15 @@ class _TrainKeystrokePageState extends State<TrainKeystrokePage> {
       SnackBar(content: Text(_serverMessage)),
     );
     controller.reset();
+
     // Reset keystroke data after submission
     _resetKeystrokeData();
+    //reload page
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+          builder: (context) => TrainKeystrokePage(userName: widget.userName)),
+    );
   }
 
   @override
@@ -229,15 +293,42 @@ class _TrainKeystrokePageState extends State<TrainKeystrokePage> {
                       onTapOutside: (event) {
                         if (!_isKeyboardArea(event)) {
                           setState(() {
+                            _usernameFocusNode.unfocus();
+                            _isKeyboardVisible = false;
+                          });
+                        }
+                      },
+                      keyboardType: TextInputType.none,
+                      focusNode: _usernameFocusNode,
+                      controller: _usernameController,
+                      decoration: const InputDecoration(labelText: 'Username'),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your username';
+                        }
+                        return null; // Return null for valid input
+                      },
+                      onTap: () {
+                        _usernameFocusNode
+                            .requestFocus(); // Request focus on tap
+                        usernameFlag = true;
+                        passwordFlag = false;
+                      },
+                    ),
+                    TextFormField(
+                      onTapOutside: (event) {
+                        if (!_isKeyboardArea(event)) {
+                          setState(() {
                             _passwordFocusNode.unfocus();
                             _isKeyboardVisible = false;
                           });
                         }
                       },
                       onTap: () {
-                        print('Password field tapped'); // Debugging line
                         _passwordFocusNode
                             .requestFocus(); // Request focus on tap
+                        passwordFlag = true;
+                        usernameFlag = false;
                       },
                       keyboardType: TextInputType.none,
                       focusNode:
@@ -265,52 +356,64 @@ class _TrainKeystrokePageState extends State<TrainKeystrokePage> {
           ],
         ),
       ),
-      // The custom keyboard should be placed outside the Padding to allow full width
-      bottomNavigationBar: _isKeyboardVisible
-          ? SizedBox(
-              width:
-                  MediaQuery.of(context).size.width, // Full width of the screen
-              height: MediaQuery.of(context).size.height *
-                  0.35, // Set the height of the keyboard
-              child: Listener(
-                onPointerUp: (details) {
-                  if (_passwordFocusNode.hasFocus) {
-                    setState(() {
-                      // Take the timestamp of the event and add it to the keyrelease times list
-                      _registerKeystroke(
-                          0, DateTime.now().millisecondsSinceEpoch.toDouble());
-                      print("Tapped cancel on password field keyboard");
-                    });
-                  }
-                },
-                onPointerDown: (details) {
-                  if (_passwordFocusNode.hasFocus) {
-                    setState(() {
-                      _registerKeystroke(
-                          DateTime.now().millisecondsSinceEpoch.toDouble(), 0);
-                      print("Tapped down on password field keyboard");
-                      print(details.localPosition);
-                      print(details.kind);
-                    });
-                  }
-                },
-                child: CustomKeyboard(
-                  backgroundColor: Colors.white,
-                  bottomPaddingColor: Colors.transparent,
-                  bottomPaddingHeight: 0,
-                  keyboardHeight: MediaQuery.of(context).size.height * 0.35,
-                  keyboardWidth:
-                      MediaQuery.of(context).size.width, // Ensure full width
-                  onTapColor: Colors.blue,
-                  textColor: Colors.black,
-                  keybordButtonColor: Colors.white,
-                  elevation: WidgetStateProperty.all(5.0),
-                  controller: controller,
-                  onChange: (text) => {_handlePasswordChange(text)},
-                ),
-              ),
-            )
-          : null, // Hide the keyboard if not visible
+      bottomNavigationBar: Listener(
+        onPointerUp: (details) {
+          if (_usernameFocusNode.hasFocus) {
+            setState(() {
+              // Take the timestamp of the event and add it to the keyrelease times list
+              _registerUserKeystroke(
+                  0, DateTime.now().millisecondsSinceEpoch.toDouble());
+            });
+          } else if (_passwordFocusNode.hasFocus) {
+            setState(() {
+              // Take the timestamp of the event and add it to the keyrelease times list
+              _registerKeystroke(
+                  0, DateTime.now().millisecondsSinceEpoch.toDouble());
+            });
+          }
+        },
+        onPointerDown: (details) {
+          if (_usernameFocusNode.hasFocus) {
+            setState(() {
+              _registerUserKeystroke(
+                  DateTime.now().millisecondsSinceEpoch.toDouble(), 0);
+            });
+          } else if (_passwordFocusNode.hasFocus) {
+            setState(() {
+              _registerKeystroke(
+                  DateTime.now().millisecondsSinceEpoch.toDouble(), 0);
+            });
+          }
+        },
+        child: Visibility(
+          visible: _isKeyboardVisible,
+          maintainState: true,
+          child: Container(
+            alignment: Alignment.bottomCenter,
+            height: MediaQuery.of(context).size.height * 0.35,
+            width: MediaQuery.of(context).size.width, // Full width
+            child: CustomKeyboard(
+              key: _keyboardKey,
+              backgroundColor: Colors.white,
+              bottomPaddingColor: Colors.transparent,
+              bottomPaddingHeight: 0,
+              keyboardHeight: MediaQuery.of(context).size.height * 0.35,
+              keyboardWidth: MediaQuery.of(context).size.width,
+              onTapColor: Colors.blue,
+              textColor: Colors.black,
+              keybordButtonColor: Colors.white,
+              elevation: WidgetStateProperty.all(5.0),
+              controller: controller,
+              onChange: (text) => {
+                if (usernameFlag)
+                  {_handleUserChange(text)}
+                else if (passwordFlag)
+                  {_handlePasswordChange(text)}
+              },
+            ),
+          ),
+        ),
+      ), // Hide the keyboard if not visible
     );
   }
 }
